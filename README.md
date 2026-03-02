@@ -41,3 +41,8 @@ npm run dev
 ## Environment variables
 
 Copy `.env.example` to `.env` in the `backend/` directory and update the values for your database.
+
+## Board image asset
+
+Generated board image from the writeup is available at `docs/ludo_board_numbered.svg`.
+To regenerate: `python scripts/generate_ludo_board.py`.
