@@ -40,7 +40,7 @@ export async function createGame(playerCount: number = 4): Promise<import("../ty
 }
 
 export async function getGame(gameId: string): Promise<import("../types/game").GameState> {
-  const response = await fetch(`${API_BASE_URL}/games/${gameId}`);
+  const response = await fetch(`${API_BASE_URL}/games/${gameId}`, { cache: "no-store" });
   if (!response.ok) {
     if (response.status === 404) throw new Error("Game not found");
     throw new Error("Failed to fetch game");
@@ -90,6 +90,17 @@ export async function passTurn(gameId: string): Promise<import("../types/game").
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.detail ?? "Failed to pass");
+  }
+  return response.json();
+}
+
+export async function chanceTurn(gameId: string): Promise<import("../types/game").GameState> {
+  const response = await fetch(`${API_BASE_URL}/games/${gameId}/chance`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Failed to play chance");
   }
   return response.json();
 }

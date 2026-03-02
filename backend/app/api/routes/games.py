@@ -237,3 +237,33 @@ async def pass_turn(game_id: str) -> GameState:
     out = _engine_state_to_schema(state)
     out.id = game_id
     return out
+
+
+@router.post("/{game_id}/chance", response_model=GameState)
+async def play_chance(game_id: str) -> GameState:
+    """Use chance instead of rolling the dice for this turn."""
+    if game_id not in _games:
+        raise HTTPException(status_code=404, detail="Game not found")
+    data, status = _games[game_id]
+    if status == "finished":
+        raise HTTPException(status_code=400, detail="Game is finished")
+    state = dict_to_state(data)
+    engine = GameEngine(player_count=state.player_count)
+    engine.active_colors = state.active_colors
+    engine.color_index = {c: i for i, c in enumerate(state.active_colors)}
+
+    if state.has_rolled:
+        raise HTTPException(status_code=400, detail="Cannot use chance after rolling")
+
+    message = engine.apply_random_chance(state)
+    if state.winner_index is None:
+        advance_turn(state)
+    else:
+        status = "finished"
+
+    _games[game_id] = (state_to_dict(state), status)
+    out = _engine_state_to_schema(state)
+    out.id = game_id
+    out.status = status
+    out.message = message
+    return out

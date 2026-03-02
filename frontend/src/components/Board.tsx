@@ -1,26 +1,22 @@
 import type { GameState, PlayerColor, TokenState } from "../types/game";
 import Token from "./Token";
+import { START_PATH_INDEX, START_PATH_INDEX_SET } from "../constants/board";
 
 const SIZE = 15;
 const CELL = "100% / 15";
+const YARD_CELL = "100% / 6";
 
+// Canonical 52-step outer track mapping on the 15x15 board grid.
 const PATH_POSITIONS: [number, number][] = [
-  [8, 13], [8, 12], [8, 11], [8, 10], [8, 9], [8, 8],
-  [9, 8], [10, 8], [11, 8], [12, 8], [13, 8], [14, 8], [14, 7],
-  [14, 6], [13, 6], [12, 6], [11, 6], [10, 6], [9, 6],
-  [8, 6], [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [7, 0],
-  [6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5],
-  [6, 6], [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6],
-  [0, 7], [0, 8], [1, 8], [2, 8], [3, 8], [4, 8], [5, 8],
-  [6, 8], [6, 9], [6, 10], [6, 11], [6, 12], [6, 13], [7, 14],
+  [8, 13], [8, 12], [8, 11], [8, 10], [8, 9], [9, 8],
+  [10, 8], [11, 8], [12, 8], [13, 8], [14, 8], [14, 7], [14, 6],
+  [13, 6], [12, 6], [11, 6], [10, 6], [9, 6], [8, 5],
+  [8, 4], [8, 3], [8, 2], [8, 1], [8, 0], [7, 0], [6, 0],
+  [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [5, 6],
+  [4, 6], [3, 6], [2, 6], [1, 6], [0, 6], [0, 7], [0, 8],
+  [1, 8], [2, 8], [3, 8], [4, 8], [5, 8], [6, 9], [6, 10],
+  [6, 11], [6, 12], [6, 13], [6, 14], [7, 14], [8, 14],
 ];
-
-const START_INDEX: Record<PlayerColor, number> = {
-  green: 0,
-  yellow: 13,
-  blue: 26,
-  red: 39,
-};
 
 const HOME_LANE: Record<PlayerColor, [number, number][]> = {
   red: [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],
@@ -30,10 +26,10 @@ const HOME_LANE: Record<PlayerColor, [number, number][]> = {
 };
 
 const YARD_POSITIONS: Record<PlayerColor, [number, number][]> = {
-  blue: [[1, 1], [1, 4], [4, 1], [4, 4]],
-  red: [[1, 10], [1, 13], [4, 10], [4, 13]],
-  yellow: [[10, 1], [10, 4], [13, 1], [13, 4]],
-  green: [[10, 10], [10, 13], [13, 10], [13, 13]],
+  blue: [[2, 2], [2, 3], [3, 2], [3, 3]],
+  red: [[2, 11], [2, 12], [3, 11], [3, 12]],
+  yellow: [[11, 2], [11, 3], [12, 2], [12, 3]],
+  green: [[11, 11], [11, 12], [12, 11], [12, 12]],
 };
 
 const COLOR_CLASS: Record<PlayerColor, string> = {
@@ -43,20 +39,33 @@ const COLOR_CLASS: Record<PlayerColor, string> = {
   green: "bg-ludo-green",
 };
 
+const ALL_COLORS: PlayerColor[] = ["red", "blue", "yellow", "green"];
+const TOKENS_PER_PLAYER = 4;
+const keyOf = (row: number, col: number) => `${row}:${col}`;
+const calc = (n: number) => `calc((${CELL}) * ${n})`;
+const yardCalc = (n: number) => `calc((${YARD_CELL}) * ${n})`;
+const isCenterTile = (row: number, col: number) => row >= 6 && row <= 8 && col >= 6 && col <= 8;
+
+const PATH_INDEX_BY_CELL = new Map<string, number>(
+  PATH_POSITIONS.map(([row, col], idx) => [keyOf(row, col), idx])
+);
+
+const HOME_CELL_TARGET = new Map<string, { home_color: PlayerColor; home_index: number }>(
+  (Object.entries(HOME_LANE) as [PlayerColor, [number, number][]][])
+    .flatMap(([color, cells]) => cells.map(([row, col], idx) => [keyOf(row, col), { home_color: color, home_index: idx }] as const))
+);
+
 interface BoardProps {
   game: GameState | null;
   onTokenClick?: (color: string, tokenIndex: number) => void;
-  onTargetClick?: (move: {
-    color: string;
-    token_index: number;
+  onTileClick?: (tile: {
     target_kind: "path" | "home";
     path_index: number | null;
     home_index: number | null;
+    home_color?: PlayerColor;
   }) => void;
   selectedMove?: { color: string; tokenIndex: number } | null;
 }
-
-const calc = (n: number) => `calc((${CELL}) * ${n})`;
 
 function tokenCell(token: TokenState): [number, number] | null {
   if (token.kind === "yard") return YARD_POSITIONS[token.color]?.[token.token_index] ?? null;
@@ -65,10 +74,22 @@ function tokenCell(token: TokenState): [number, number] | null {
   return null;
 }
 
-export default function Board({ game, onTokenClick, onTargetClick, selectedMove }: BoardProps) {
-  const validMoveSet = game ? new Set(game.valid_moves.map((m) => `${m.color}:${m.token_index}`)) : new Set<string>();
+export default function Board({ game, onTokenClick, onTileClick, selectedMove }: BoardProps) {
+  const validMoveSet = game
+    ? new Set(game.valid_moves.map((m) => `${m.color}:${m.token_index}`))
+    : new Set<string>();
   const selectedKey = selectedMove ? `${selectedMove.color}:${selectedMove.tokenIndex}` : null;
-  const selectedMoveData = selectedKey ? game?.valid_moves.find((m) => `${m.color}:${m.token_index}` === selectedKey) : null;
+  const displayTokens: TokenState[] =
+    game?.tokens ??
+    ALL_COLORS.flatMap((color) =>
+      Array.from({ length: TOKENS_PER_PLAYER }, (_, token_index) => ({
+        color,
+        token_index,
+        kind: "yard",
+        path_index: null,
+        home_index: null,
+      } as TokenState))
+    );
 
   return (
     <section className="w-full max-w-[860px]">
@@ -81,26 +102,53 @@ export default function Board({ game, onTokenClick, onTargetClick, selectedMove 
             const row = Math.floor(idx / SIZE);
             const col = idx % SIZE;
             const key = `${row}-${col}`;
-            const pathIndex = PATH_POSITIONS.findIndex(([r, c]) => r === row && c === col);
-            const laneColor = (Object.keys(HOME_LANE) as PlayerColor[]).find((color) =>
-              HOME_LANE[color].some(([r, c]) => r === row && c === col)
-            );
-            const isCenter = row >= 6 && row <= 8 && col >= 6 && col <= 8;
+            const pathIndex = PATH_INDEX_BY_CELL.get(keyOf(row, col));
+            const homeCell = HOME_CELL_TARGET.get(keyOf(row, col));
 
             let bg = "bg-white";
             if (row < 6 && col < 6) bg = "bg-ludo-blue";
             if (row < 6 && col > 8) bg = "bg-ludo-red";
             if (row > 8 && col < 6) bg = "bg-ludo-yellow";
             if (row > 8 && col > 8) bg = "bg-ludo-green";
-            if (pathIndex !== -1) bg = "bg-white";
-            if (laneColor) bg = COLOR_CLASS[laneColor];
-            if (pathIndex !== -1 && Object.values(START_INDEX).includes(pathIndex)) {
-              const color = (Object.entries(START_INDEX).find(([, i]) => i === pathIndex)?.[0] ?? "green") as PlayerColor;
+            if (pathIndex != null) bg = "bg-white";
+            if (homeCell) bg = COLOR_CLASS[homeCell.home_color];
+            if (pathIndex != null && START_PATH_INDEX_SET.has(pathIndex)) {
+              const color = (Object.entries(START_PATH_INDEX).find(([, i]) => i === pathIndex)?.[0] ?? "green") as PlayerColor;
               bg = COLOR_CLASS[color];
             }
-            if (isCenter) bg = "bg-ludo-base";
+            if (isCenterTile(row, col)) bg = "bg-ludo-base";
 
-            return <div key={key} className={`border border-black ${bg}`} />;
+            const tileTarget =
+              pathIndex != null
+                ? { target_kind: "path" as const, path_index: pathIndex, home_index: null as number | null }
+                : homeCell
+                  ? {
+                      target_kind: "home" as const,
+                      path_index: null as number | null,
+                      home_index: homeCell.home_index,
+                      home_color: homeCell.home_color,
+                    }
+                  : null;
+            const tileClickable = !!selectedKey && !!tileTarget && !!onTileClick;
+
+            return (
+              <div
+                key={key}
+                className={`relative border border-black ${bg} ${tileClickable ? "cursor-pointer" : ""}`}
+                onClick={tileClickable ? () => onTileClick(tileTarget) : undefined}
+              >
+                {pathIndex != null && (
+                  <span className="pointer-events-none absolute left-0.5 top-0.5 rounded bg-white/90 px-0.5 text-[10px] font-bold leading-none text-black">
+                    {pathIndex}
+                  </span>
+                )}
+                {pathIndex != null && START_PATH_INDEX_SET.has(pathIndex) && (
+                  <span className="pointer-events-none absolute bottom-0.5 right-0.5 rounded bg-black/70 px-0.5 text-[8px] font-bold leading-none text-white">
+                    START
+                  </span>
+                )}
+              </div>
+            );
           })}
 
           {([
@@ -114,15 +162,22 @@ export default function Board({ game, onTokenClick, onTargetClick, selectedMove 
               className={`${COLOR_CLASS[yard.color]} absolute border border-black`}
               style={{ top: calc(yard.row), left: calc(yard.col), width: calc(6), height: calc(6) }}
             >
-              <div className="absolute inset-[14%] border border-black bg-white">
-                <div className="grid h-full grid-cols-2 gap-[18%] p-[16%]">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-center border border-black bg-black">
-                      <span className={`block h-[70%] w-[70%] rounded-full ${COLOR_CLASS[yard.color]}`} />
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <div
+                className="absolute border border-black bg-white"
+                style={{ top: yardCalc(1), left: yardCalc(1), width: yardCalc(4), height: yardCalc(4) }}
+              />
+              {[
+                [2, 2],
+                [2, 3],
+                [3, 2],
+                [3, 3],
+              ].map(([r, c], i) => (
+                <div
+                  key={i}
+                  className="absolute border border-black bg-white/40"
+                  style={{ top: yardCalc(r), left: yardCalc(c), width: yardCalc(1), height: yardCalc(1) }}
+                />
+              ))}
             </div>
           ))}
 
@@ -133,10 +188,16 @@ export default function Board({ game, onTokenClick, onTargetClick, selectedMove 
               <polygon points="50,50 100,100 0,100" fill="#F4C430" />
               <polygon points="50,50 0,100 0,0" fill="#2F6FD6" />
             </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-black/70">HOME</div>
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <svg viewBox="0 0 64 64" className="h-[58%] w-[58%] drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]">
+                <path d="M10 30 32 12 54 30v22a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4z" fill="#f8fafc" stroke="#111827" strokeWidth="3" />
+                <path d="M22 56V38a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v18" fill="#e5e7eb" stroke="#111827" strokeWidth="3" />
+                <rect x="28" y="42" width="8" height="14" rx="1.5" fill="#c2410c" stroke="#111827" strokeWidth="2" />
+              </svg>
+            </div>
           </div>
 
-          {game?.tokens.map((token) => {
+          {displayTokens.map((token) => {
             const pos = tokenCell(token);
             if (!pos) return null;
             const [row, col] = pos;
@@ -145,35 +206,31 @@ export default function Board({ game, onTokenClick, onTargetClick, selectedMove 
             return (
               <div
                 key={key}
-                className="absolute flex items-center justify-center"
-                style={{ top: `calc(${calc(row)} + (${CELL}) * 0.12)`, left: `calc(${calc(col)} + (${CELL}) * 0.12)`, width: `calc((${CELL}) * 0.76)`, height: `calc((${CELL}) * 0.76)` }}
+                className="absolute z-20 flex items-center justify-center"
+                style={{
+                  top: `calc(${calc(row)} + (${CELL}) * 0.12)`,
+                  left: `calc(${calc(col)} + (${CELL}) * 0.12)`,
+                  width: `calc((${CELL}) * 0.76)`,
+                  height: `calc((${CELL}) * 0.76)`,
+                }}
               >
                 <button
                   type="button"
                   onClick={() => onTokenClick?.(token.color, token.token_index)}
                   disabled={!canMove}
-                  className={`h-full w-full rounded-full ${canMove ? "ring-2 ring-white" : ""} ${selectedKey === key ? "ring-4 ring-amber-300" : ""}`}
+                  className={`h-full w-full rounded-full transition-all ${
+                    selectedKey === key
+                      ? "ring-4 ring-black -translate-y-0.5 scale-[1.03] shadow-[0_8px_14px_rgba(0,0,0,0.45)]"
+                      : canMove
+                        ? "ring-2 ring-white"
+                        : ""
+                  }`}
                 >
                   <Token color={token.color} label={`${token.color[0].toUpperCase()}${token.token_index + 1}`} small />
                 </button>
               </div>
             );
           })}
-
-          {selectedMoveData && (
-            <button
-              type="button"
-              aria-label="Place token"
-              onClick={() => onTargetClick?.(selectedMoveData)}
-              className="absolute rounded-full border-2 border-amber-300 bg-amber-200/70"
-              style={{
-                top: `calc(${calc((selectedMoveData.target_kind === "path" ? PATH_POSITIONS[selectedMoveData.path_index ?? -1]?.[0] : HOME_LANE[selectedMoveData.color]?.[selectedMoveData.home_index ?? -1]?.[0]) ?? 0)} + (${CELL}) * 0.2)`,
-                left: `calc(${calc((selectedMoveData.target_kind === "path" ? PATH_POSITIONS[selectedMoveData.path_index ?? -1]?.[1] : HOME_LANE[selectedMoveData.color]?.[selectedMoveData.home_index ?? -1]?.[1]) ?? 0)} + (${CELL}) * 0.2)`,
-                width: `calc((${CELL}) * 0.6)`,
-                height: `calc((${CELL}) * 0.6)`,
-              }}
-            />
-          )}
         </div>
       </div>
     </section>

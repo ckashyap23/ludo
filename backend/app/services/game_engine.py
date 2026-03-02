@@ -16,7 +16,7 @@ ACTIVE_COLORS_BY_COUNT = {
 }
 
 # Main track: 52 squares, clockwise. Start path index when leaving yard.
-START_PATH_INDEX = {"green": 0, "yellow": 13, "red": 26, "blue": 39}
+START_PATH_INDEX = {"green": 0, "yellow": 13, "blue": 26, "red": 39}
 
 # Path index where each color turns into home column (5 squares)
 HOME_ENTRANCE_PATH = {"green": 51, "yellow": 12, "blue": 25, "red": 38}
@@ -26,6 +26,16 @@ SAFE_PATH_INDEXES = {0, 13, 26, 39}
 
 TOKENS_PER_PLAYER = 4
 PATH_LENGTH = 52
+CHANCE_OPTIONS = [
+    {
+        "id": "opponent_most_advanced_back_4",
+        "label": "Move opponent's most advanced coin back by 4 tiles",
+    },
+    {
+        "id": "advance_all_mine_by_1",
+        "label": "Advance all my coins that can move by 1",
+    },
+]
 
 
 class TokenPositionKind(str, Enum):
@@ -131,6 +141,18 @@ class GameEngine:
     def roll_dice(self) -> int:
         return random.randint(1, 6)
 
+    def chance_options(self) -> list[dict]:
+        return [dict(option) for option in CHANCE_OPTIONS]
+
+    def apply_random_chance(self, state: GameEngineState) -> str:
+        option = random.choice(CHANCE_OPTIONS)
+        option_id = option["id"]
+        if option_id == "opponent_most_advanced_back_4":
+            return self._chance_opponent_back_4(state)
+        if option_id == "advance_all_mine_by_1":
+            return self._chance_advance_all_mine_by_1(state)
+        return "Chance had no effect."
+
     def valid_moves(self, state: GameEngineState, roll: int) -> list[tuple[str, int]]:
         """
         Returns list of (color, token_index) that can move with this roll.
@@ -159,7 +181,12 @@ class GameEngine:
 
     def _can_advance_on_path(self, state: GameEngineState, token: TokenState, roll: int) -> bool:
         assert token.path_index is not None
-        new_path = (token.path_index + roll) % PATH_LENGTH
+        destination = self._path_destination(token, roll)
+        if destination[0] == TokenPositionKind.HOME:
+            return destination[2] is not None
+        new_path = destination[1]
+        if new_path is None:
+            return False
         if state.is_blocked(new_path, token.color):
             return False
         return True
@@ -185,7 +212,11 @@ class GameEngine:
             return (TokenPositionKind.PATH, START_PATH_INDEX[token.color], None)
         if token.kind == TokenPositionKind.PATH:
             assert token.path_index is not None
-            new_path = (token.path_index + roll) % PATH_LENGTH
+            kind, new_path, new_home = self._path_destination(token, roll)
+            if kind == TokenPositionKind.HOME:
+                return (kind, None, new_home)
+            if new_path is None:
+                return None
             if state.is_blocked(new_path, token.color):
                 return None
             return (TokenPositionKind.PATH, new_path, None)
@@ -248,7 +279,29 @@ class GameEngine:
     ) -> MoveResult:
         assert token.path_index is not None
         captured: Optional[str] = None
-        new_path = (token.path_index + roll) % PATH_LENGTH
+        kind, new_path, new_home = self._path_destination(token, roll)
+        if kind == TokenPositionKind.HOME:
+            if new_home is None:
+                return MoveResult(moved=False, extra_turn=False, message="Must roll exact to finish")
+            new_token = TokenState(
+                color=token.color,
+                token_index=token.token_index,
+                kind=TokenPositionKind.HOME,
+                home_index=new_home,
+            )
+            self._replace_token(state, token, new_token)
+            won = self._check_winner(state, token.color)
+            if won:
+                state.winner_index = self.color_index[token.color]
+            return MoveResult(
+                moved=True,
+                extra_turn=(roll == 6),
+                message="Moved into home lane." + (" Winner!" if won else ""),
+            )
+
+        if new_path is None:
+            return MoveResult(moved=False, extra_turn=False, message="Invalid move")
+
         # Capture: send opponent at new_path back to yard
         if state.can_capture(new_path, token.color):
             other = state.get_tokens_at_path(new_path)[0]
@@ -273,6 +326,27 @@ class GameEngine:
             captured=captured,
             message="Moved on path." + (" Captured!" if captured else ""),
         )
+
+    def _path_destination(
+        self,
+        token: TokenState,
+        roll: int,
+    ) -> tuple[TokenPositionKind, Optional[int], Optional[int]]:
+        """Resolve destination from PATH considering color-specific home entrance."""
+        assert token.path_index is not None
+        start = START_PATH_INDEX[token.color]
+        entrance = HOME_ENTRANCE_PATH[token.color]
+        steps_to_entrance = (entrance - start) % PATH_LENGTH
+        # Distance traveled on color route since leaving yard: 0..51
+        traveled = (token.path_index - start) % PATH_LENGTH
+        # After passing entrance tile, movement continues in the 5-cell home lane.
+        if traveled + roll > steps_to_entrance:
+            home_index = traveled + roll - steps_to_entrance - 1
+            if home_index > 4:
+                return (TokenPositionKind.HOME, None, None)
+            return (TokenPositionKind.HOME, None, home_index)
+        new_path = (token.path_index + roll) % PATH_LENGTH
+        return (TokenPositionKind.PATH, new_path, None)
 
     def _apply_home_move(
         self,
@@ -316,6 +390,58 @@ class GameEngine:
         return len(home_tokens) == TOKENS_PER_PLAYER and all(
             t.home_index == 4 for t in home_tokens
         )
+
+    def _chance_opponent_back_4(self, state: GameEngineState) -> str:
+        current_color = state.active_colors[state.current_player_index]
+        opponent_tokens = [
+            t
+            for t in state.tokens
+            if t.color != current_color and t.color in state.active_colors and t.kind == TokenPositionKind.PATH and t.path_index is not None
+        ]
+        if not opponent_tokens:
+            return "Chance: no opponent coin on track to move back."
+
+        def progress(token: TokenState) -> int:
+            start = START_PATH_INDEX[token.color]
+            assert token.path_index is not None
+            return (token.path_index - start) % PATH_LENGTH
+
+        target = max(opponent_tokens, key=lambda t: (progress(t), -t.token_index))
+        assert target.path_index is not None
+        new_path = (target.path_index - 4) % PATH_LENGTH
+        moved_token = TokenState(
+            color=target.color,
+            token_index=target.token_index,
+            kind=TokenPositionKind.PATH,
+            path_index=new_path,
+        )
+        self._replace_token(state, target, moved_token)
+        return f"Chance: {target.color} token {target.token_index + 1} moved back by 4."
+
+    def _chance_advance_all_mine_by_1(self, state: GameEngineState) -> str:
+        current_color = state.active_colors[state.current_player_index]
+        moved_count = 0
+        for token_index in range(TOKENS_PER_PLAYER):
+            token = next(
+                (t for t in state.tokens if t.color == current_color and t.token_index == token_index),
+                None,
+            )
+            if token is None or not self._can_move_token(state, token, 1):
+                continue
+            if token.kind == TokenPositionKind.PATH:
+                result = self._apply_path_move(state, token, 1)
+                moved_count += 1 if result.moved else 0
+            elif token.kind == TokenPositionKind.HOME:
+                result = self._apply_home_move(state, token, 1)
+                moved_count += 1 if result.moved else 0
+
+        if moved_count == 0:
+            return "Chance: no coins could advance by 1."
+        won = self._check_winner(state, current_color)
+        if won:
+            state.winner_index = self.color_index[current_color]
+            return f"Chance: advanced {moved_count} coin(s) by 1. Winner!"
+        return f"Chance: advanced {moved_count} coin(s) by 1."
 
 
 def state_to_dict(state: GameEngineState) -> dict:

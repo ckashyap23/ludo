@@ -80,7 +80,7 @@ for color,cells in home_lanes.items():
 parts.append(f'<rect x="{6*TILE}" y="{6*TILE}" width="{3*TILE}" height="{3*TILE}" fill="{COLORS["home"]}" stroke="{COLORS["black"]}" stroke-width="3"/>')
 parts.append(f'<text x="{7.5*TILE}" y="{7.5*TILE}" text-anchor="middle" dominant-baseline="middle" font-size="22" font-family="Arial" fill="{COLORS["black"]}">HOME</text>')
 
-for i,(r,c) in enumerate(ordered, start=1):
+for i,(r,c) in enumerate(ordered, start=0):
     x,y=cell(r,c)
     parts.append(f'<text x="{x+TILE/2}" y="{y+TILE/2}" text-anchor="middle" dominant-baseline="middle" font-size="18" font-family="Arial" fill="{COLORS["black"]}">{escape(str(i))}</text>')
 
