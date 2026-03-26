@@ -1,20 +1,14 @@
-const RAW_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const RAW_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const NETWORK_ERROR_MSG =
-  "Could not reach the server. Start the backend: cd backend, then .venv\\Scripts\\activate, then uvicorn app.main:app --reload";
+  "Could not reach the server. Make sure the backend is running on port 8080.";
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
 function getApiBaseCandidates(): string[] {
-  const candidates = [normalizeBaseUrl(RAW_API_BASE_URL)];
-  if (typeof window !== "undefined") {
-    const origin = normalizeBaseUrl(window.location.origin);
-    candidates.push(origin);
-    candidates.push(`${origin}/api`);
-  }
-  return [...new Set(candidates)];
+  return [normalizeBaseUrl(RAW_API_BASE_URL)];
 }
 
 async function handleFetchError(e: unknown, fallback: string): Promise<never> {
@@ -76,19 +70,73 @@ async function requestJson<T>(path: string, init: RequestInit, fallback: string)
   return handleFetchError(lastError, fallback);
 }
 
+function playerHeaders(playerId: string): Record<string, string> {
+  return { "Content-Type": "application/json", "X-Player-ID": playerId };
+}
+
+function withAuth(
+  headers: Record<string, string>,
+  token?: string | null
+): Record<string, string> {
+  if (!token) return headers;
+  return { ...headers, Authorization: `Bearer ${token}` };
+}
+
+export function getWsUrl(gameId: string, playerId: string): string {
+  const wsOrigin = typeof window !== "undefined"
+    ? window.location.origin.replace(/^http/, "ws")
+    : "ws://127.0.0.1:8080";
+  return `${wsOrigin}/games/${gameId}/ws?player_id=${playerId}`;
+}
+
 export async function fetchHealth(): Promise<{ status: string }> {
   return requestJson<{ status: string }>("/health", {}, "Failed to fetch health status");
 }
 
-export async function createGame(playerCount: number = 4): Promise<import("../types/game").GameState> {
-  return requestJson<import("../types/game").GameState>(
+export async function createGame(
+  playerCount: number = 4,
+  displayName: string = "Player 1",
+  token?: string | null
+): Promise<import("../types/game").JoinResponse> {
+  return requestJson<import("../types/game").JoinResponse>(
     "/games",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ player_count: playerCount }),
+      headers: withAuth({ "Content-Type": "application/json" }, token),
+      body: JSON.stringify({ player_count: playerCount, display_name: displayName }),
     },
     "Failed to create game"
+  );
+}
+
+export async function joinGame(
+  gameId: string,
+  displayName: string = "Player",
+  token?: string | null
+): Promise<import("../types/game").JoinResponse> {
+  return requestJson<import("../types/game").JoinResponse>(
+    `/games/${gameId}/join`,
+    {
+      method: "POST",
+      headers: withAuth({ "Content-Type": "application/json" }, token),
+      body: JSON.stringify({ display_name: displayName }),
+    },
+    "Failed to join game"
+  );
+}
+
+export async function markReady(
+  gameId: string,
+  playerId: string,
+  token?: string | null
+): Promise<import("../types/game").LobbyState> {
+  return requestJson<import("../types/game").LobbyState>(
+    `/games/${gameId}/ready`,
+    {
+      method: "POST",
+      headers: withAuth({ "X-Player-ID": playerId }, token),
+    },
+    "Failed to mark ready"
   );
 }
 
@@ -100,25 +148,31 @@ export async function getGame(gameId: string): Promise<import("../types/game").G
   );
 }
 
-export async function rollDice(gameId: string): Promise<import("../types/game").RollResponse> {
+export async function rollDice(
+  gameId: string,
+  playerId: string,
+  token?: string | null
+): Promise<import("../types/game").RollResponse> {
   return requestJson<import("../types/game").RollResponse>(
     `/games/${gameId}/roll`,
-    { method: "POST" },
+    { method: "POST", headers: withAuth({ "X-Player-ID": playerId }, token) },
     "Failed to roll"
   );
 }
 
 export async function moveToken(
   gameId: string,
+  playerId: string,
   color: string,
   tokenIndex: number,
-  target: { target_kind: "path" | "home"; path_index: number | null; home_index: number | null }
+  target: { target_kind: "path" | "home"; path_index: number | null; home_index: number | null },
+  token?: string | null
 ): Promise<import("../types/game").GameState> {
   return requestJson<import("../types/game").GameState>(
     `/games/${gameId}/move`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withAuth(playerHeaders(playerId), token),
       body: JSON.stringify({
         color,
         token_index: tokenIndex,
@@ -131,18 +185,88 @@ export async function moveToken(
   );
 }
 
-export async function passTurn(gameId: string): Promise<import("../types/game").GameState> {
+export async function passTurn(
+  gameId: string,
+  playerId: string,
+  token?: string | null
+): Promise<import("../types/game").GameState> {
   return requestJson<import("../types/game").GameState>(
     `/games/${gameId}/pass`,
-    { method: "POST" },
+    { method: "POST", headers: withAuth({ "X-Player-ID": playerId }, token) },
     "Failed to pass"
   );
 }
 
-export async function chanceTurn(gameId: string): Promise<import("../types/game").GameState> {
+export async function chanceTurn(
+  gameId: string,
+  playerId: string,
+  token?: string | null
+): Promise<import("../types/game").GameState> {
   return requestJson<import("../types/game").GameState>(
     `/games/${gameId}/chance`,
-    { method: "POST" },
+    { method: "POST", headers: withAuth({ "X-Player-ID": playerId }, token) },
     "Failed to play chance"
+  );
+}
+
+export async function pauseGame(
+  gameId: string,
+  playerId: string,
+  token?: string | null
+): Promise<import("../types/game").GameState> {
+  return requestJson<import("../types/game").GameState>(
+    `/games/${gameId}/pause`,
+    { method: "POST", headers: withAuth({ "X-Player-ID": playerId }, token) },
+    "Failed to pause game"
+  );
+}
+
+export async function resumeGame(
+  gameId: string,
+  playerId: string,
+  token?: string | null
+): Promise<import("../types/game").GameState> {
+  return requestJson<import("../types/game").GameState>(
+    `/games/${gameId}/resume`,
+    { method: "POST", headers: withAuth({ "X-Player-ID": playerId }, token) },
+    "Failed to resume game"
+  );
+}
+
+export async function resetGame(
+  gameId: string,
+  playerId: string,
+  token?: string | null
+): Promise<import("../types/game").LobbyState> {
+  return requestJson<import("../types/game").LobbyState>(
+    `/games/${gameId}/reset`,
+    { method: "POST", headers: withAuth({ "X-Player-ID": playerId }, token) },
+    "Failed to reset game"
+  );
+}
+
+export async function fetchMyGames(token: string): Promise<import("../types/game").GameHistoryItem[]> {
+  return requestJson<import("../types/game").GameHistoryItem[]>(
+    "/auth/me/games",
+    { headers: { Authorization: `Bearer ${token}` } },
+    "Failed to fetch game history"
+  );
+}
+
+export async function claimGame(
+  gameId: string,
+  playerId: string,
+  token: string
+): Promise<void> {
+  await requestJson<{ ok: boolean }>(
+    `/games/${gameId}/claim`,
+    {
+      method: "POST",
+      headers: {
+        "X-Player-ID": playerId,
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    "Failed to claim game"
   );
 }

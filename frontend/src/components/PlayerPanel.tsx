@@ -10,9 +10,10 @@ const colorStyles: Record<string, string> = {
 
 interface PlayerPanelProps {
   game: GameState | null;
+  myPlayerIndex?: number;
 }
 
-export default function PlayerPanel({ game }: PlayerPanelProps) {
+export default function PlayerPanel({ game, myPlayerIndex }: PlayerPanelProps) {
   if (!game) {
     return (
       <section className="rounded-2xl bg-slate-800 p-5 shadow-lg">
@@ -37,7 +38,8 @@ export default function PlayerPanel({ game }: PlayerPanelProps) {
         {activeColors.map((color, idx) => {
           const isCurrent = color === currentColor;
           const isWinner = winnerColor === color;
-          const status = isWinner ? "Winner!" : isCurrent ? "Your turn" : "Waiting";
+          const isMe = myPlayerIndex !== undefined && idx === myPlayerIndex;
+          const status = isWinner ? "Winner!" : isCurrent ? (isMe ? "Your turn" : "Their turn") : "Waiting";
           return (
             <li
               key={color}
@@ -45,8 +47,11 @@ export default function PlayerPanel({ game }: PlayerPanelProps) {
                 colorStyles[color] ?? "border-slate-600"
               } ${isCurrent ? "ring-2 ring-white" : ""}`}
             >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold capitalize">{color}</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold capitalize">
+                  {color}
+                  {isMe && <span className="ml-2 text-xs font-normal text-slate-400">(You)</span>}
+                </span>
                 <span className="text-xs uppercase tracking-wide text-slate-400">
                   {status}
                 </span>
@@ -56,7 +61,7 @@ export default function PlayerPanel({ game }: PlayerPanelProps) {
         })}
       </ul>
       {game.message && (
-        <p className="mt-4 text-sm text-amber-300">{game.message}</p>
+        <p className="mt-4 text-sm leading-6 text-amber-300">{game.message}</p>
       )}
     </section>
   );

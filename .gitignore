@@ -5,11 +5,17 @@ __pycache__/
 .venv/
 venv/
 .env
+*.db
 
 # Node
 node_modules/
 dist/
 .vite/
+package-lock.json
 
 # OS
 .DS_Store
+
+# Local tooling
+.claude/
+backend/logs/

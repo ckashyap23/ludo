@@ -1,109 +1,156 @@
-# Project structure and file details
+# Project Structure
 
-```
+This document describes the current repository layout for Twisted Ludo.
+
+## Top level
+
+```text
 .
-├── README.md
-├── .gitignore
-├── docs/
-│   └── STRUCTURE.md
-├── backend/
-│   ├── .env.example
-│   ├── requirements.txt
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py
-│   │   ├── api/
-│   │   │   ├── __init__.py
-│   │   │   └── routes/
-│   │   │       ├── __init__.py
-│   │   │       ├── games.py
-│   │   │       └── health.py
-│   │   ├── core/
-│   │   │   ├── __init__.py
-│   │   │   ├── config.py
-│   │   │   └── database.py
-│   │   ├── models/
-│   │   │   ├── __init__.py
-│   │   │   ├── game.py
-│   │   │   └── player.py
-│   │   ├── schemas/
-│   │   │   ├── __init__.py
-│   │   │   ├── game.py
-│   │   │   └── player.py
-│   │   └── services/
-│   │       ├── __init__.py
-│   │       └── game_engine.py
-│   └── tests/
-│       └── __init__.py
-└── frontend/
-    ├── index.html
-    ├── package.json
-    ├── postcss.config.cjs
-    ├── tailwind.config.cjs
-    ├── tsconfig.json
-    ├── tsconfig.node.json
-    ├── vite.config.ts
-    └── src/
-        ├── App.tsx
-        ├── index.css
-        ├── main.tsx
-        ├── api/
-        │   └── client.ts
-        ├── components/
-        │   ├── Board.tsx
-        │   ├── Dice.tsx
-        │   ├── PlayerPanel.tsx
-        │   └── Token.tsx
-        └── types/
-            └── game.ts
+|- backend/
+|- docs/
+|- frontend/
+|- scripts/
+|- .gitignore
+|- nixpacks.toml
+|- railway.json
+|- README.md
+|- start.sh
 ```
 
-## File details
+## Backend
 
-### Root
+```text
+backend/
+|- app/
+|  |- api/
+|  |  |- routes/
+|  |  |  |- auth.py
+|  |  |  |- games.py
+|  |  |  |- health.py
+|  |- core/
+|  |  |- config.py
+|  |  |- database.py
+|  |- models/
+|  |  |- game.py
+|  |  |- game_record.py
+|  |  |- player.py
+|  |  |- user.py
+|  |- schemas/
+|  |  |- auth.py
+|  |  |- game.py
+|  |  |- player.py
+|  |- services/
+|  |  |- auth_service.py
+|  |  |- connection_manager.py
+|  |  |- game_engine.py
+|  |- main.py
+|- tests/
+|- .env.example
+|- requirements.txt
+```
 
-- `README.md`: High-level setup and quick-start instructions for both services.
-- `.gitignore`: Ignores Python virtualenvs, Node artifacts, and build outputs.
-- `docs/STRUCTURE.md`: This file; the canonical reference for the scaffold layout.
+### Important backend files
 
-### Backend
+- `backend/app/main.py`: FastAPI app setup, CORS, and startup table creation.
+- `backend/app/api/routes/auth.py`: register, login, current-user, and `My Games` APIs.
+- `backend/app/api/routes/games.py`: create/join/ready/roll/move/pass/pause/resume/reset APIs plus WebSocket handling.
+- `backend/app/core/config.py`: environment-driven settings, DB URL normalization, and app mode.
+- `backend/app/core/database.py`: SQLAlchemy engine, session, and declarative base.
+- `backend/app/models/user.py`: persisted users table.
+- `backend/app/models/game.py`: persisted games table with user linkage and game status.
+- `backend/app/services/game_engine.py`: Ludo rules engine and game state transitions.
+- `backend/app/services/connection_manager.py`: active WebSocket connection registry.
+- `backend/app/services/auth_service.py`: JWT and password helpers.
 
-- `backend/.env.example`: Example environment variables for Postgres connectivity.
-- `backend/requirements.txt`: Python dependencies for FastAPI, SQLAlchemy, and Postgres.
-- `backend/app/__init__.py`: Marks the app module as a Python package.
-- `backend/app/main.py`: FastAPI app factory, router registration, and startup hooks.
-- `backend/app/api/__init__.py`: API package marker.
-- `backend/app/api/routes/__init__.py`: Router aggregator for API endpoints.
-- `backend/app/api/routes/health.py`: Health check endpoint for uptime monitoring.
-- `backend/app/api/routes/games.py`: Placeholder endpoints for game creation and state.
-- `backend/app/core/__init__.py`: Core package marker.
-- `backend/app/core/config.py`: Pydantic settings for environment configuration.
-- `backend/app/core/database.py`: SQLAlchemy engine/session setup for Postgres.
-- `backend/app/models/__init__.py`: SQLAlchemy model package marker.
-- `backend/app/models/game.py`: Game table definition (metadata for sessions).
-- `backend/app/models/player.py`: Player table definition (user info & color).
-- `backend/app/schemas/__init__.py`: Pydantic schema package marker.
-- `backend/app/schemas/game.py`: Request/response models for game data.
-- `backend/app/schemas/player.py`: Request/response models for player data.
-- `backend/app/services/__init__.py`: Service package marker.
-- `backend/app/services/game_engine.py`: Pure rules engine placeholder for Ludo logic.
-- `backend/tests/__init__.py`: Test package marker for future tests.
+### Backend notes
 
-### Frontend
+- Live lobbies still exist in memory while a game is active.
+- Important game state is also persisted to the database for `My Games` and recovery.
+- Local development may use SQLite or PostgreSQL.
+- Hosted environments should use PostgreSQL.
 
-- `frontend/index.html`: Vite HTML entry point.
-- `frontend/package.json`: Frontend scripts and dependencies (React, Vite, Tailwind).
-- `frontend/postcss.config.cjs`: PostCSS setup for Tailwind.
-- `frontend/tailwind.config.cjs`: Tailwind configuration and content paths.
-- `frontend/tsconfig.json`: TypeScript config for the app.
-- `frontend/tsconfig.node.json`: TypeScript config for Vite tooling.
-- `frontend/vite.config.ts`: Vite config with React plugin.
-- `frontend/src/main.tsx`: React entry point and Tailwind import.
-- `frontend/src/index.css`: Tailwind base styles and custom tokens.
-- `frontend/src/App.tsx`: Main UI layout with board and side panel.
-- `frontend/src/api/client.ts`: Fetch wrapper for backend API calls.
-- `frontend/src/components/Board.tsx`: Board layout placeholder for grid rendering.
-- `frontend/src/components/Dice.tsx`: Dice roll UI component placeholder.
-- `frontend/src/components/PlayerPanel.tsx`: Player info and turn indicator UI.
-- `frontend/src/components/Token.tsx`: Token UI component placeholder.
-- `frontend/src/types/game.ts`: Shared front-end types for game state.
+## Frontend
+
+```text
+frontend/
+|- public/
+|- src/
+|  |- api/
+|  |  |- client.ts
+|  |- components/
+|  |  |- AuthModal.tsx
+|  |  |- Board.tsx
+|  |  |- Dice.tsx
+|  |  |- LobbyView.tsx
+|  |  |- MyGames.tsx
+|  |  |- PlayerPanel.tsx
+|  |  |- Token.tsx
+|  |- constants/
+|  |  |- board.ts
+|  |- context/
+|  |  |- AuthContext.tsx
+|  |- hooks/
+|  |  |- useGameSocket.ts
+|  |  |- usePlayerIdentity.ts
+|  |- pages/
+|  |  |- GamePage.tsx
+|  |  |- HomePage.tsx
+|  |- types/
+|  |  |- game.ts
+|  |- App.tsx
+|  |- ErrorBoundary.tsx
+|  |- index.css
+|  |- main.tsx
+|- index.html
+|- package.json
+|- postcss.config.cjs
+|- tailwind.config.cjs
+|- tsconfig.json
+|- vite.config.ts
+```
+
+### Important frontend files
+
+- `frontend/src/App.tsx`: top-level app routing shell.
+- `frontend/src/pages/HomePage.tsx`: landing page, auth entry, create-game flow, and `My Games` overlay.
+- `frontend/src/pages/GamePage.tsx`: lobby state, active game state, pause/resume/reset controls, and gameplay screen.
+- `frontend/src/components/Board.tsx`: board rendering and token interaction layer.
+- `frontend/src/components/Dice.tsx`: dice actions and current turn UI.
+- `frontend/src/components/LobbyView.tsx`: waiting room and ready/start flow.
+- `frontend/src/components/MyGames.tsx`: full-page table view for persisted and live games.
+- `frontend/src/context/AuthContext.tsx`: frontend auth state.
+- `frontend/src/hooks/useGameSocket.ts`: real-time game updates over WebSocket.
+- `frontend/src/hooks/usePlayerIdentity.ts`: local browser identity storage for a joined game.
+- `frontend/src/api/client.ts`: REST and WebSocket URL helpers.
+
+## Docs
+
+```text
+docs/
+|- Implementation Guide.md
+|- STRUCTURE.md
+|- TwistedLudo PRD.md
+|- ludo_board_numbered.svg
+```
+
+### Docs purpose
+
+- `docs/Implementation Guide.md`: technical overview of how the app works today.
+- `docs/STRUCTURE.md`: repo map and file responsibilities.
+- `docs/TwistedLudo PRD.md`: product requirements and feature intent.
+
+## Files that should not be pushed accidentally
+
+These are usually local-only and should stay out of GitHub commits:
+
+- `backend/.env`
+- `backend/.venv/`
+- `backend/logs/`
+- `frontend/node_modules/`
+- local SQLite database files if not intentionally tracked
+
+## Runtime and deployment helpers
+
+- `start.sh`: backend startup command for deployment.
+- `nixpacks.toml`: Nixpacks build instructions.
+- `railway.json`: Railway deployment configuration.

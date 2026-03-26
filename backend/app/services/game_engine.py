@@ -147,7 +147,9 @@ class GameEngine:
         )
 
     def roll_dice(self) -> int:
-        return random.randint(1, 6)
+        # Weighted roll: 6 appears with 1/3 probability; 1-5 share the remaining 2/3.
+        # weights sum = 15; 6 gets weight 5 → 5/15 = 1/3
+        return random.choices([1, 2, 3, 4, 5, 6], weights=[2, 2, 2, 2, 2, 5], k=1)[0]
 
     def chance_options(self) -> list[dict]:
         return [dict(option) for option in CHANCE_OPTIONS]

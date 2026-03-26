@@ -1,8 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import App from "./App";
 import ErrorBoundary from "./ErrorBoundary";
+import { AuthProvider } from "./context/AuthContext";
+import HomePage from "./pages/HomePage";
+import GamePage from "./pages/GamePage";
 import "./index.css";
 
 const rootEl = document.getElementById("root");
@@ -12,7 +15,14 @@ if (!rootEl) {
   ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <App />
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/:gameId" element={<GamePage />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

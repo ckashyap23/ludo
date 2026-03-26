@@ -138,7 +138,7 @@ export default function Board({ game, onTokenClick, onTileClick, selectedMove, r
     );
 
   return (
-    <section className="relative w-full max-w-[860px]">
+    <section className="relative mx-auto w-full max-w-[min(100%,780px)] xl:max-w-[820px]">
       <div className="rounded-lg border-2 border-black bg-white p-1 shadow-xl">
         <div
           className="relative grid aspect-square w-full"
@@ -282,7 +282,7 @@ export default function Board({ game, onTokenClick, onTileClick, selectedMove, r
             ([color, position]) => (
               <div
                 key={`home-count-${color}`}
-                className={`pointer-events-none absolute z-20 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/80 text-sm font-black text-slate-950 shadow-lg ${
+                className={`pointer-events-none absolute z-20 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/80 text-xs font-black text-slate-950 shadow-lg sm:h-10 sm:w-10 sm:text-sm ${
                   COLOR_CLASS[color]
                 }`}
                 style={{ top: position.top, left: position.left }}
@@ -296,7 +296,7 @@ export default function Board({ game, onTokenClick, onTileClick, selectedMove, r
       {rollingDie && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
           <div
-            className={`relative h-24 w-24 rounded-[1.75rem] border-4 border-slate-900 bg-white shadow-[0_24px_40px_rgba(15,23,42,0.34)] transition-all ${
+            className={`relative h-16 w-16 rounded-[1.25rem] border-4 border-slate-900 bg-white shadow-[0_24px_40px_rgba(15,23,42,0.34)] transition-all sm:h-24 sm:w-24 sm:rounded-[1.75rem] ${
               rollingDie.settling ? "duration-200 ease-out" : "duration-75 ease-linear"
             }`}
             style={{
@@ -308,7 +308,7 @@ export default function Board({ game, onTokenClick, onTileClick, selectedMove, r
             {pipPositions(rollingDie.value).map((position, index) => (
               <span
                 key={`${position}-${index}`}
-                className={`absolute h-3.5 w-3.5 rounded-full bg-slate-900 ${pipClass(position)}`}
+                className={`absolute h-2.5 w-2.5 rounded-full bg-slate-900 sm:h-3.5 sm:w-3.5 ${pipClass(position)}`}
               />
             ))}
           </div>
@@ -316,7 +316,7 @@ export default function Board({ game, onTokenClick, onTileClick, selectedMove, r
       )}
       {winnerLabel && (
         <div className="pointer-events-none absolute inset-x-0 top-1/2 z-40 flex -translate-y-1/2 justify-center">
-          <div className="rounded-full border-2 border-amber-300 bg-slate-950/90 px-6 py-3 text-lg font-bold text-amber-200 shadow-[0_18px_30px_rgba(0,0,0,0.45)]">
+          <div className="mx-4 rounded-full border-2 border-amber-300 bg-slate-950/90 px-4 py-2 text-center text-sm font-bold text-amber-200 shadow-[0_18px_30px_rgba(0,0,0,0.45)] sm:px-6 sm:py-3 sm:text-lg">
             {winnerLabel}
           </div>
         </div>

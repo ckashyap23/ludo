@@ -16,17 +16,52 @@ class TokenStateSchema(BaseModel):
     home_index: Optional[int] = None
 
 
+class LobbyPlayerSchema(BaseModel):
+    """A player slot in the lobby."""
+
+    player_index: int
+    color: str
+    display_name: str
+    ready: bool
+    connected: bool
+
+
+class LobbyStateSchema(BaseModel):
+    """Lobby metadata returned to clients."""
+
+    game_id: str
+    player_count: int
+    players: list[LobbyPlayerSchema]
+    status: Literal["waiting", "active", "paused", "finished"]
+
+
 class GameCreate(BaseModel):
-    """Create game: number of players (2–4)."""
+    """Create game: number of players (2–4) and creator display name."""
 
     player_count: int = 4
+    display_name: str = "Player 1"
+
+
+class JoinRequest(BaseModel):
+    """Request to join an existing lobby."""
+
+    display_name: str = "Player"
+
+
+class JoinResponse(BaseModel):
+    """Returned to a player when they create or join a game."""
+
+    player_id: str
+    color: str
+    player_index: int
+    lobby: LobbyStateSchema
 
 
 class GameState(BaseModel):
     """Full game state for API."""
 
     id: str
-    status: Literal["waiting", "active", "finished"]
+    status: Literal["waiting", "active", "paused", "finished"]
     player_count: int
     active_colors: list[str]
     current_player_index: int
@@ -36,6 +71,7 @@ class GameState(BaseModel):
     winner_index: Optional[int] = None
     valid_moves: list[dict] = []  # [{"color": "red", "token_index": 0, "target_kind": "path"}, ...]
     message: str = ""
+    players: list[LobbyPlayerSchema] = []
 
 
 class RollResponse(BaseModel):
