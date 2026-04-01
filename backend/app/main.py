@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import games, health
 from app.api.routes import auth as auth_routes
-from app.core.config import settings
+from app.core.config import get_cors_origins
 from app.core.database import Base, engine
 import app.models.game  # noqa: F401
 import app.models.user  # noqa: F401
@@ -27,7 +27,7 @@ app = FastAPI(title="Ludo API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

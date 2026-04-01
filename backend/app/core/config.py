@@ -26,14 +26,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./ludo.db"
     db_auto_create: bool = True
     app_env: str = "development"
-    cors_origins: str = ",".join(DEFAULT_CORS_ORIGINS)
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
-
-    @property
-    def cors_origins_list(self) -> list[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     def model_post_init(self, __context) -> None:
         self.database_url = self.normalize_database_url(self.database_url)
@@ -55,3 +50,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ORIGINS", ",".join(DEFAULT_CORS_ORIGINS))
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
