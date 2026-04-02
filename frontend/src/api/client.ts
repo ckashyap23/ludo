@@ -63,7 +63,7 @@ async function requestJson<T>(path: string, init: RequestInit, fallback: string)
     }
   }
 
-  if (sawOnlyNotFound) {
+  if (sawOnlyNotFound && candidates.length > 1) {
     throw new Error(`API not found. Checked: ${candidates.map((baseUrl) => `${baseUrl}${path}`).join(", ")}`);
   }
 
